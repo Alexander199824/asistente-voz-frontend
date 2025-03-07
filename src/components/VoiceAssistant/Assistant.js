@@ -11,10 +11,9 @@ import {
   FormControlLabel,
   CircularProgress,
   Grid,
-  Alert,
-  Snackbar
+  Alert
 } from '@mui/material';
-import { Send, Refresh, History } from '@mui/icons-material';
+import { Send, History } from '@mui/icons-material';
 import Recorder from './Recorder';
 import Response from './Response';
 import useAssistant from '../../hooks/useAssistant';
@@ -27,17 +26,13 @@ const Assistant = () => {
   const [currentResponse, setCurrentResponse] = useState(null);
   const [autoSpeak, setAutoSpeak] = useState(true);
   const [showHistory, setShowHistory] = useState(false);
-  const [notification, setNotification] = useState({
-    open: false,
-    message: '',
-    severity: 'info'
-  });
+  const [error, setError] = useState(null);
   
   // Referencia al input de texto
   const inputRef = useRef(null);
   
   // Obtengo funcionalidades del contexto del asistente
-  const { processQuery, conversations, loading, processing, error } = useAssistant();
+  const { processQuery, conversations, loading, processing, error: assistantError } = useAssistant();
   
   // Obtengo funcionalidades de síntesis de voz
   const { speak } = useSpeech();
@@ -45,29 +40,12 @@ const Assistant = () => {
   // Obtengo información del usuario
   const { user } = useAuth();
   
-  // Efecto para mostrar errores
+  // Efecto para mostrar errores del contexto
   useEffect(() => {
-    if (error) {
-      showNotification(error, 'error');
+    if (assistantError) {
+      setError(assistantError);
     }
-  }, [error]);
-  
-  // Función para mostrar notificaciones
-  const showNotification = (message, severity = 'info') => {
-    setNotification({
-      open: true,
-      message,
-      severity
-    });
-  };
-  
-  // Función para cerrar notificaciones
-  const handleCloseNotification = () => {
-    setNotification(prev => ({
-      ...prev,
-      open: false
-    }));
-  };
+  }, [assistantError]);
   
   // Función para procesar una consulta de texto
   const handleSubmit = async (e) => {
@@ -75,13 +53,11 @@ const Assistant = () => {
     
     if (!query.trim()) return;
     
+    // Limpiar errores anteriores
+    setError(null);
+    
     try {
-      // Verificar conexión con el backend
-      if (!window.backendConnected) {
-        showNotification('Lo siento, en este momento no puedo responder porque no hay conexión con el servidor.', 'error');
-        return;
-      }
-      
+      // No verificamos window.backendConnected, dejamos que la API maneje los errores
       const response = await processQuery(query);
       
       if (response) {
@@ -96,15 +72,14 @@ const Assistant = () => {
           knowledgeId: responseData.knowledgeId
         });
         
-        // Mostrar notificación de éxito
-        showNotification('Respuesta recibida correctamente', 'success');
-        
         // Leer la respuesta si está habilitado
         if (autoSpeak) {
           speak(responseData.response);
         }
       } else {
-        showNotification('Lo siento, no pude entender tu consulta. ¿Puedes intentar de nuevo?', 'warning');
+        // Solo mostrar error en la consola, no mostrar notificación
+        console.warn('Respuesta vacía del servidor');
+        setError('No se pudo obtener una respuesta del servidor. Por favor, intenta de nuevo.');
       }
       
       // Limpio el input
@@ -117,28 +92,18 @@ const Assistant = () => {
     } catch (error) {
       console.error('Error al procesar consulta:', error);
       
-      // Mostrar un mensaje amigable
-      if (error.message === "Sin conexión al backend") {
-        showNotification('Lo siento, en este momento no puedo responder porque no hay conexión con el servidor.', 'error');
-      } else {
-        showNotification('Lo siento, ha ocurrido un error al procesar tu consulta. Por favor, intenta más tarde.', 'error');
-      }
+      // Mostrar error solo en UI local, no en notificación global
+      setError('Lo siento, ha ocurrido un error al procesar tu consulta. Por favor, intenta más tarde.');
     }
   };
   
   // Función para procesar una consulta de voz
   const handleVoiceQuery = async (detectedQuery) => {
     setQuery(detectedQuery);
+    setError(null);
     
     try {
-      // Verificar conexión con el backend
-      if (!window.backendConnected) {
-        showNotification('Lo siento, en este momento no puedo responder porque no hay conexión con el servidor.', 'error');
-        speak('Lo siento, en este momento no puedo responder porque no hay conexión con el servidor.');
-        return;
-      }
-      
-      showNotification(`Procesando: "${detectedQuery}"`, 'info');
+      console.log(`Procesando consulta por voz: "${detectedQuery}"`);
       
       const response = await processQuery(detectedQuery);
       
@@ -154,26 +119,18 @@ const Assistant = () => {
           knowledgeId: responseData.knowledgeId
         });
         
-        // Mostrar notificación de éxito
-        showNotification('Respuesta recibida correctamente', 'success');
-        
         // Leer la respuesta siempre cuando viene de voz
         speak(responseData.response);
       } else {
-        const message = 'Lo siento, no pude entender tu consulta. ¿Puedes intentar de nuevo?';
-        showNotification(message, 'warning');
+        const message = 'Lo siento, no pude obtener una respuesta. ¿Puedes intentar de nuevo?';
+        setError(message);
         speak(message);
       }
     } catch (error) {
       console.error('Error al procesar consulta de voz:', error);
       
-      let message = 'Lo siento, ha ocurrido un error al procesar tu consulta. Por favor, intenta más tarde.';
-      
-      if (error.message === "Sin conexión al backend") {
-        message = 'Lo siento, en este momento no puedo responder porque no hay conexión con el servidor.';
-      }
-      
-      showNotification(message, 'error');
+      const message = 'Lo siento, ha ocurrido un error al procesar tu consulta. Por favor, intenta más tarde.';
+      setError(message);
       speak(message);
     }
   };
@@ -199,6 +156,12 @@ const Assistant = () => {
         
         <Divider sx={{ mb: 3 }} />
         
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        )}
+        
         <Recorder onQueryDetected={handleVoiceQuery} />
         
         <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
@@ -220,7 +183,7 @@ const Assistant = () => {
                 variant="contained"
                 color="primary"
                 startIcon={processing ? <CircularProgress size={20} color="inherit" /> : <Send />}
-                disabled={!query.trim() || processing || !window.backendConnected}
+                disabled={!query.trim() || processing}
               >
                 Enviar
               </Button>
@@ -251,12 +214,6 @@ const Assistant = () => {
         </Box>
         
         <Divider sx={{ mt: 2, mb: 3 }} />
-        
-        {!window.backendConnected && (
-          <Alert severity="error" sx={{ mb: 3 }}>
-            No hay conexión con el servidor. El asistente no podrá responder hasta que se restablezca la conexión.
-          </Alert>
-        )}
         
         {/* Muestro la respuesta actual */}
         {currentResponse && (
@@ -297,22 +254,6 @@ const Assistant = () => {
           </Typography>
         )}
       </Paper>
-      
-      {/* Notificaciones */}
-      <Snackbar
-        open={notification.open}
-        autoHideDuration={6000}
-        onClose={handleCloseNotification}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-      >
-        <Alert 
-          onClose={handleCloseNotification} 
-          severity={notification.severity}
-          variant="filled"
-        >
-          {notification.message}
-        </Alert>
-      </Snackbar>
     </Container>
   );
 };

@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom/client';
 
 // Estado global de conexión
-window.backendConnected = false;
+window.backendConnected = undefined;
 
 // Verifica si la variable de entorno está definida
 if (!process.env.REACT_APP_API_URL) {
@@ -36,84 +36,32 @@ API.interceptors.request.use(
 // Interceptor para manejar errores de conexión
 API.interceptors.response.use(
   (response) => {
-    window.backendConnected = true;
+    // Solo actualizar el estado si era diferente
+    if (window.backendConnected !== true) {
+      window.backendConnected = true;
+    }
     return response;
   },
   (error) => {
-    window.backendConnected = false;
-    showConnectionNotification(false, "No hay conexión con el servidor.");
+    // Solo actualizar el estado si era diferente
+    if (window.backendConnected !== false) {
+      window.backendConnected = false;
+    }
     return Promise.reject(error);
   }
 );
 
-// Mostrar notificación de conexión exitosa al inicio
+// Verificar la conexión inicial al backend sin mostrar notificación (App.js se encargará de esto)
 const checkBackendConnection = async () => {
   try {
     await API.get('/health');
     window.backendConnected = true;
-    showConnectionNotification(true, "Conexión exitosa con el backend");
   } catch (error) {
     window.backendConnected = false;
-    showConnectionNotification(false, "No se pudo conectar al servidor.");
   }
 };
 
-// Componente para mostrar notificación
-const ConnectionNotification = () => {
-  const [open, setOpen] = useState(true);
-  const [success, setSuccess] = useState(true);
-  const [message, setMessage] = useState('');
-
-  const theme = createTheme();
-  
-  const handleClose = () => {
-    setOpen(false);
-  };
-
-  window.updateConnectionStatus = (isSuccess, msg) => {
-    setSuccess(isSuccess);
-    setMessage(msg || (isSuccess ? "Conexión exitosa con el backend" : "Error al conectar con el backend"));
-    setOpen(true);
-  };
-
-  return (
-    <ThemeProvider theme={theme}>
-      <Snackbar 
-        open={open} 
-        autoHideDuration={6000} 
-        onClose={handleClose}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Alert 
-          onClose={handleClose} 
-          severity={success ? "success" : "error"}
-          variant="filled"
-          sx={{ width: '100%' }}
-        >
-          {message}
-        </Alert>
-      </Snackbar>
-    </ThemeProvider>
-  );
-};
-
-// Función para mostrar la notificación
-const showConnectionNotification = (success, message) => {
-  let notificationRoot = document.getElementById('connection-notification');
-  if (!notificationRoot) {
-    notificationRoot = document.createElement('div');
-    notificationRoot.id = 'connection-notification';
-    document.body.appendChild(notificationRoot);
-    const root = ReactDOM.createRoot(notificationRoot);
-    root.render(<ConnectionNotification />);
-  }
-
-  if (window.updateConnectionStatus) {
-    window.updateConnectionStatus(success, message);
-  }
-};
-
-// Verificar conexión al cargar
+// Verificar conexión al cargar (con un pequeño retraso para que la aplicación esté lista)
 setTimeout(() => {
   checkBackendConnection();
 }, 1000);
@@ -127,7 +75,6 @@ setInterval(() => {
 export const assistantAPI = {
   processQuery: async (query) => {
     if (!window.backendConnected) {
-      showConnectionNotification(false, "No hay conexión con el servidor.");
       throw new Error("Sin conexión al backend");
     }
     try {
@@ -135,7 +82,6 @@ export const assistantAPI = {
       // Devuelve directamente response.data para simplificar el manejo en AssistantContext
       return response.data;
     } catch (error) {
-      showConnectionNotification(false, "No puedo responder en este momento.");
       throw error;
     }
   },
@@ -175,26 +121,22 @@ export const assistantAPI = {
 export const authAPI = {
   login: async (username, password) => {
     if (!window.backendConnected) {
-      showConnectionNotification(false, "No hay conexión con el servidor.");
       throw new Error("Sin conexión al backend");
     }
     try {
       return await API.post('/auth/login', { username, password });
     } catch (error) {
-      showConnectionNotification(false, "No puedo iniciar sesión.");
       throw error;
     }
   },
 
   register: async (username, email, password) => {
     if (!window.backendConnected) {
-      showConnectionNotification(false, "No hay conexión con el servidor.");
       throw new Error("Sin conexión al backend");
     }
     try {
       return await API.post('/auth/register', { username, email, password });
     } catch (error) {
-      showConnectionNotification(false, "No puedo registrarte.");
       throw error;
     }
   },
@@ -210,13 +152,11 @@ export const authAPI = {
 
   updatePreferences: async (preferences) => {
     if (!window.backendConnected) {
-      showConnectionNotification(false, "No hay conexión con el servidor.");
       throw new Error("Sin conexión al backend");
     }
     try {
       return await API.put('/auth/preferences', preferences);
     } catch (error) {
-      showConnectionNotification(false, "No puedo actualizar las preferencias.");
       throw error;
     }
   }
@@ -226,26 +166,22 @@ export const authAPI = {
 export const adminAPI = {
   updateKnowledge: async (limit = 1) => {
     if (!window.backendConnected) {
-      showConnectionNotification(false, "No hay conexión con el servidor.");
       throw new Error("Sin conexión al backend");
     }
     try {
       return await API.post('/admin/update-knowledge', { limit });
     } catch (error) {
-      showConnectionNotification(false, "No puedo actualizar la base de conocimiento.");
       throw error;
     }
   },
 
   updateSingleKnowledge: async (knowledgeId) => {
     if (!window.backendConnected) {
-      showConnectionNotification(false, "No hay conexión con el servidor.");
       throw new Error("Sin conexión al backend");
     }
     try {
       return await API.post(`/admin/update-knowledge/${knowledgeId}`);
     } catch (error) {
-      showConnectionNotification(false, "No puedo actualizar el conocimiento.");
       throw error;
     }
   },
@@ -262,13 +198,11 @@ export const adminAPI = {
 
   clearKnowledgeBase: async () => {
     if (!window.backendConnected) {
-      showConnectionNotification(false, "No hay conexión con el servidor.");
       throw new Error("Sin conexión al backend");
     }
     try {
       return await API.post('/admin/clear-knowledge');
     } catch (error) {
-      showConnectionNotification(false, "No puedo limpiar la base de conocimiento.");
       throw error;
     }
   }

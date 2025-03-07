@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { 
   Paper, 
   Typography, 
@@ -6,10 +6,12 @@ import {
   IconButton, 
   Chip,
   Divider,
-  Tooltip
+  Tooltip,
+  CircularProgress
 } from '@mui/material';
 import { 
   VolumeUp, 
+  VolumeOff,
   ThumbUp, 
   ThumbDown,
   Delete,
@@ -20,28 +22,103 @@ import useSpeech from '../../hooks/useSpeech';
 import useAuth from '../../hooks/useAuth';
 
 const Response = ({ conversation, autoSpeak = false }) => {
+  // Estado para controlar errores de voz
+  const [voiceError, setVoiceError] = useState(false);
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+  
+  // Ref para evitar reproducción duplicada
+  const hasAutoplayedRef = useRef(false);
+  const conversationIdRef = useRef(null);
+  
   // Obtengo funcionalidades del contexto del asistente
   const { provideFeedback, deleteKnowledge } = useAssistant();
   
   // Obtengo la funcionalidad de síntesis de voz
-  const { speak, speaking } = useSpeech();
+  const { speak, stop, speaking, audioSupported } = useSpeech();
   
   // Verifico si el usuario está autenticado
   const { user } = useAuth();
   
+  // Efecto para actualizar el ID de referencia cuando cambia la conversación
+  // Esto ayuda a evitar intentos duplicados de reproducción
+  useEffect(() => {
+    if (conversation?.id !== conversationIdRef.current) {
+      conversationIdRef.current = conversation?.id;
+      hasAutoplayedRef.current = false;
+    }
+  }, [conversation?.id]);
+  
   // Efecto para hablar automáticamente la respuesta si autoSpeak está activado
   useEffect(() => {
-    if (autoSpeak && conversation && conversation.response) {
-      speak(conversation.response);
-    }
-  }, [conversation, autoSpeak, speak]);
+    let isMounted = true;
+    
+    const playAudio = async () => {
+      // Solo reproducir automáticamente si:
+      // 1. autoSpeak está activado
+      // 2. Hay una conversación con respuesta
+      // 3. No ha habido un error previo
+      // 4. El audio está soportado
+      // 5. No se ha reproducido ya este mismo texto (usando ID como referencia)
+      // 6. La conversación tiene un ID (para evitar respuestas temporales)
+      if (autoSpeak && 
+          conversation && 
+          conversation.response && 
+          !voiceError && 
+          audioSupported && 
+          !hasAutoplayedRef.current &&
+          conversation.id) {
+        
+        // Marcamos que ya intentamos reproducir esta respuesta
+        hasAutoplayedRef.current = true;
+        
+        try {
+          setIsPlayingAudio(true);
+          console.log("Reproduciendo automáticamente respuesta:", 
+                     conversation.response.substring(0, 30) + "...");
+          await speak(conversation.response);
+        } catch (error) {
+          if (isMounted) {
+            setVoiceError(true);
+            console.error("Error al reproducir respuesta automáticamente:", error);
+          }
+        } finally {
+          if (isMounted) {
+            setIsPlayingAudio(false);
+          }
+        }
+      }
+    };
+    
+    playAudio();
+    
+    return () => {
+      isMounted = false;
+      // Detener el audio si se desmonta el componente
+      stop();
+    };
+  }, [conversation?.id]); // Dependencia específica al ID
   
   // Si no hay conversación, no muestro nada
   if (!conversation) return null;
   
   // Función para manejar la reproducción de voz
-  const handleSpeak = () => {
-    speak(conversation.response);
+  const handleSpeak = async () => {
+    setVoiceError(false);
+    
+    if (speaking) {
+      stop();
+      setIsPlayingAudio(false);
+    } else {
+      try {
+        setIsPlayingAudio(true);
+        await speak(conversation.response);
+      } catch (error) {
+        setVoiceError(true);
+        console.error("Error al reproducir respuesta:", error);
+      } finally {
+        setIsPlayingAudio(false);
+      }
+    }
   };
   
   // Función para manejar el feedback positivo
@@ -140,38 +217,65 @@ const Response = ({ conversation, autoSpeak = false }) => {
       
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2, pt: 1 }}>
         <Box>
-          <Tooltip title="Escuchar respuesta">
-            <IconButton onClick={handleSpeak} color={speaking ? "secondary" : "default"}>
-              <VolumeUp />
-            </IconButton>
-          </Tooltip>
+          {audioSupported ? (
+            <Tooltip title={speaking ? "Detener reproducción" : "Escuchar respuesta"}>
+              {isPlayingAudio && !speaking ? (
+                <span>
+                  <IconButton disabled>
+                    <CircularProgress size={24} />
+                  </IconButton>
+                </span>
+              ) : (
+                <IconButton 
+                  onClick={handleSpeak} 
+                  color={speaking ? "secondary" : "default"}
+                >
+                  {speaking ? <VolumeOff /> : <VolumeUp />}
+                </IconButton>
+              )}
+            </Tooltip>
+          ) : (
+            <Tooltip title="Síntesis de voz no disponible en este navegador">
+              <span>
+                <IconButton disabled>
+                  <VolumeOff />
+                </IconButton>
+              </span>
+            </Tooltip>
+          )}
         </Box>
         
         {user && (
           <Box>
             <Tooltip title="Me gusta esta respuesta">
-              <IconButton 
-                onClick={handlePositiveFeedback}
-                color={conversation.feedback === 1 ? "success" : "default"}
-              >
-                <ThumbUp />
-              </IconButton>
+              <span>
+                <IconButton 
+                  onClick={handlePositiveFeedback}
+                  color={conversation.feedback === 1 ? "success" : "default"}
+                >
+                  <ThumbUp />
+                </IconButton>
+              </span>
             </Tooltip>
             
             <Tooltip title="No me gusta esta respuesta">
-              <IconButton 
-                onClick={handleNegativeFeedback}
-                color={conversation.feedback === -1 ? "error" : "default"}
-              >
-                <ThumbDown />
-              </IconButton>
+              <span>
+                <IconButton 
+                  onClick={handleNegativeFeedback}
+                  color={conversation.feedback === -1 ? "error" : "default"}
+                >
+                  <ThumbDown />
+                </IconButton>
+              </span>
             </Tooltip>
             
             {conversation.knowledge_id && (
               <Tooltip title="Eliminar esta respuesta de la base de conocimiento">
-                <IconButton onClick={handleDeleteKnowledge} color="warning">
-                  <Delete />
-                </IconButton>
+                <span>
+                  <IconButton onClick={handleDeleteKnowledge} color="warning">
+                    <Delete />
+                  </IconButton>
+                </span>
               </Tooltip>
             )}
           </Box>

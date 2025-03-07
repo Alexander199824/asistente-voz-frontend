@@ -32,7 +32,7 @@ export const adminAPI = {
 
   clearKnowledgeBase: async () => {
     try {
-      return await API.post('/admin/clear-knowledge');
+      return await API.post('/admin/clear-knowledge', { confirm: 'CONFIRM_CLEAR' });
     } catch (error) {
       console.error("Error al limpiar base de conocimientos:", error);
       throw error;

@@ -1,5 +1,6 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { authAPI } from '../api';
+import { retryApiCall } from '../utils/apiUtils';
 
 // Creo el contexto de autenticación
 export const AuthContext = createContext();
@@ -10,28 +11,36 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Función para verificar autenticación (usando useCallback para poder usarla en useEffect)
+  const checkAuth = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    
+    if (token) {
+      try {
+        // Usar la función de reintento para mayor robustez
+        const response = await retryApiCall(
+          authAPI.getProfile,
+          [],
+          2 // Máximo 2 intentos
+        );
+        
+        if (response && response.data && response.data.data) {
+          setUser(response.data.data);
+        }
+      } catch (error) {
+        // Si hay un error, elimino el token (puede haber caducado)
+        console.error('Error al obtener perfil:', error);
+        localStorage.removeItem('token');
+      }
+    }
+    
+    setLoading(false);
+  }, []);
+
   // Efecto para verificar si hay un token al cargar la aplicación
   useEffect(() => {
-    const checkAuth = async () => {
-      const token = localStorage.getItem('token');
-      
-      if (token) {
-        try {
-          // Obtengo el perfil del usuario con el token
-          const response = await authAPI.getProfile();
-          setUser(response.data.data);
-        } catch (error) {
-          // Si hay un error, elimino el token (puede haber caducado)
-          console.error('Error al obtener perfil:', error);
-          localStorage.removeItem('token');
-        }
-      }
-      
-      setLoading(false);
-    };
-
     checkAuth();
-  }, []);
+  }, [checkAuth]);
 
   // Método para iniciar sesión
   const login = async (username, password) => {
@@ -39,7 +48,12 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     
     try {
-      const response = await authAPI.login(username, password);
+      // Usar la función de reintento
+      const response = await retryApiCall(
+        authAPI.login,
+        [username, password],
+        2
+      );
       
       // Guardo el token en localStorage
       localStorage.setItem('token', response.data.data.token);
@@ -62,7 +76,12 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     
     try {
-      const response = await authAPI.register(username, email, password);
+      // Usar la función de reintento
+      const response = await retryApiCall(
+        authAPI.register,
+        [username, email, password],
+        2
+      );
       
       // Guardo el token en localStorage
       localStorage.setItem('token', response.data.data.token);
@@ -88,7 +107,12 @@ export const AuthProvider = ({ children }) => {
   // Método para actualizar preferencias del usuario
   const updatePreferences = async (preferences) => {
     try {
-      const response = await authAPI.updatePreferences(preferences);
+      // Usar la función de reintento
+      const response = await retryApiCall(
+        authAPI.updatePreferences,
+        [preferences],
+        2
+      );
       
       // Actualizo el usuario con las nuevas preferencias
       setUser(prevUser => ({
