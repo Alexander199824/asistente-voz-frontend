@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: asistente-voz-frontend
+    env: static
+    buildCommand: npm run build
+    staticPublishPath: ./build
+    envVars:
+      - key: REACT_APP_API_URL
+        value: https://asistente-voz-backend.onrender.com/api
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=0, must-revalidate
