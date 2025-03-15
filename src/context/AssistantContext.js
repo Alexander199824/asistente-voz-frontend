@@ -64,7 +64,8 @@ export const AssistantProvider = ({ children }) => {
       console.log('Respuesta del servidor:', JSON.stringify(response, null, 2));
       
       // Extraer datos de la respuesta de manera robusta
-      const responseData = response || {};
+      // Considerar la estructura con success y data
+      const responseData = response.success ? response.data : response;
       
       const newConversation = {
         id: responseData.id || Date.now().toString(),
