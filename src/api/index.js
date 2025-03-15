@@ -1,11 +1,4 @@
 import axios from 'axios';
-import { createTheme, ThemeProvider } from '@mui/material/styles';
-import { Snackbar, Alert } from '@mui/material';
-import React, { useState, useEffect } from 'react';
-import ReactDOM from 'react-dom/client';
-
-// Estado global de conexión
-window.backendConnected = undefined;
 
 // Verifica si la variable de entorno está definida
 if (!process.env.REACT_APP_API_URL) {
@@ -33,51 +26,48 @@ API.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Interceptor para manejar errores de conexión
-API.interceptors.response.use(
-  (response) => {
-    // Solo actualizar el estado si era diferente
-    if (window.backendConnected !== true) {
-      window.backendConnected = true;
+// **🔹 Endpoints de autenticación**
+export const authAPI = {
+  login: async (username, password) => {
+    try {
+      return await API.post('/auth/login', { username, password });
+    } catch (error) {
+      console.error("Error al iniciar sesión:", error);
+      throw error;
     }
-    return response;
   },
-  (error) => {
-    // Solo actualizar el estado si era diferente
-    if (window.backendConnected !== false) {
-      window.backendConnected = false;
-    }
-    return Promise.reject(error);
-  }
-);
 
-// Verificar la conexión inicial al backend sin mostrar notificación 
-const checkBackendConnection = async () => {
-  try {
-    await API.get('/health');
-    window.backendConnected = true;
-  } catch (error) {
-    window.backendConnected = false;
+  register: async (username, email, password) => {
+    try {
+      return await API.post('/auth/register', { username, email, password });
+    } catch (error) {
+      console.error("Error al registrar:", error);
+      throw error;
+    }
+  },
+
+  getProfile: async () => {
+    try {
+      return await API.get('/auth/profile');
+    } catch (error) {
+      console.error("Error al obtener perfil:", error);
+      throw error;
+    }
+  },
+
+  updatePreferences: async (preferences) => {
+    try {
+      return await API.put('/auth/preferences', preferences);
+    } catch (error) {
+      console.error("Error al actualizar preferencias:", error);
+      throw error;
+    }
   }
 };
-
-// Verificar conexión al cargar (con un pequeño retraso para que la aplicación esté lista)
-setTimeout(() => {
-  checkBackendConnection();
-}, 1000);
-
-// Verificar conexión periódicamente cada 30 segundos
-setInterval(() => {
-  checkBackendConnection();
-}, 30000);
 
 // **🔹 Endpoints del asistente de voz**
 export const assistantAPI = {
   processQuery: async (payload) => {
-    if (!window.backendConnected) {
-      throw new Error("Sin conexión al backend");
-    }
-    
     try {
       // Si el payload es un string, convertirlo a objeto con query
       const queryPayload = typeof payload === 'string' 
@@ -107,32 +97,59 @@ export const assistantAPI = {
   },
 
   provideFeedback: async (conversationId, feedback) => {
-    if (!window.backendConnected) return { data: { success: false } };
     try {
       return await API.post('/assistant/feedback', { conversationId, feedback });
     } catch (error) {
       console.error("Error al enviar feedback:", error);
-      return { data: { success: false } };
+      throw error;
     }
   },
 
   deleteKnowledge: async (knowledgeId) => {
-    if (!window.backendConnected) return { data: { success: false } };
     try {
       return await API.delete(`/assistant/knowledge/${knowledgeId}`);
     } catch (error) {
       console.error("Error al eliminar conocimiento:", error);
-      return { data: { success: false } };
+      throw error;
     }
   },
 
   getHistory: async (limit = 50, offset = 0) => {
-    if (!window.backendConnected) return { data: { data: [], total: 0 } };
     try {
       return await API.get(`/assistant/history?limit=${limit}&offset=${offset}`);
     } catch (error) {
       console.error("Error al obtener historial:", error);
-      return { data: { data: [], total: 0 } };
+      throw error;
+    }
+  }
+};
+
+// **🔹 Endpoints de administración**
+export const adminAPI = {
+  updateKnowledge: async (limit = 1) => {
+    try {
+      return await API.post('/admin/update-knowledge', { limit });
+    } catch (error) {
+      console.error("Error al actualizar conocimiento:", error);
+      throw error;
+    }
+  },
+
+  listKnowledge: async (page = 1, limit = 10) => {
+    try {
+      return await API.get(`/admin/knowledge?page=${page}&limit=${limit}`);
+    } catch (error) {
+      console.error("Error al listar conocimientos:", error);
+      throw error;
+    }
+  },
+
+  clearKnowledgeBase: async () => {
+    try {
+      return await API.post('/admin/clear-knowledge');
+    } catch (error) {
+      console.error("Error al limpiar base de conocimientos:", error);
+      throw error;
     }
   }
 };
