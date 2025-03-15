@@ -73,26 +73,25 @@ setInterval(() => {
 
 // **🔹 Endpoints del asistente de voz**
 export const assistantAPI = {
-  processQuery: async (query) => {
+  processQuery: async (payload) => {
     if (!window.backendConnected) {
       throw new Error("Sin conexión al backend");
     }
+    
     try {
-      const response = await API.post('/assistant/query', { query });
+      // Si el payload es un string, convertirlo a objeto con query
+      const queryPayload = typeof payload === 'string' 
+        ? { query: payload } 
+        : payload;
+      
+      // Enviar la consulta al servidor
+      const response = await API.post('/assistant/query', queryPayload);
+      
       // Devuelve directamente response.data para simplificar el manejo en AssistantContext
       return response.data;
     } catch (error) {
+      console.error("Error al procesar consulta:", error);
       throw error;
-    }
-  },
-  
-  getHistory: async (limit = 50, offset = 0) => {
-    if (!window.backendConnected) return { data: { data: [] } };
-    try {
-      return await API.get(`/assistant/history?limit=${limit}&offset=${offset}`);
-    } catch (error) {
-      console.error("Error al obtener historial:", error);
-      return { data: { data: [] } };
     }
   },
 
