@@ -121,59 +121,44 @@ export const AssistantProvider = ({ children }) => {
     setError(null);
     
     try {
-      // Preparar payload para confirmación de búsqueda web
+      // Payload simplificado y claro
       const payload = {
-        query: originalQuery, // Asegurarse de incluir la consulta original
+        query: originalQuery, 
         options: {
           awaitingWebSearchConfirmation: true,
-          isConfirmed: isConfirmed
+          isConfirmed: isConfirmed,
+          originalQuery: originalQuery // Asegurarse de que está disponible
         }
       };
       
-      console.log('Payload de confirmación de búsqueda web:', payload);
+      console.log('Payload de confirmación:', payload);
       
-      // Llamar a la API con la confirmación
+      // Llamar a la API
       const response = await assistantAPI.processQuery(payload);
-      
-      console.log('Respuesta de confirmación de búsqueda web:', 
-        JSON.stringify(response, null, 2));
+      console.log('Respuesta completa de confirmación:', response);
       
       // Extraer datos de la respuesta
       const responseData = response.success ? response.data : response;
       
+      // Actualizar conversaciones
       const newConversation = {
         id: responseData.id || Date.now().toString(),
         query: originalQuery,
-        response: responseData.response || 'No se pudo obtener una respuesta',
+        response: responseData.response || 'No se pudo obtener respuesta',
         source: responseData.source || 'desconocido',
-        confidence: responseData.confidence || 0.5,
-        awaitingWebSearchConfirmation: false,
-        awaitingUpdateConfirmation: false,
-        originalQuery: originalQuery,
-        knowledgeId: responseData.knowledgeId || null
+        confidence: responseData.confidence || 0.5
       };
       
-      // Añadir al historial de conversaciones
       setConversations(prev => [newConversation, ...prev]);
       
       if (user) {
         fetchHistory();
       }
       
-      return {
-        response: newConversation.response,
-        source: newConversation.source,
-        confidence: newConversation.confidence,
-        originalQuery: originalQuery
-      };
+      return responseData;
     } catch (error) {
-      console.error('Error al confirmar búsqueda web:', error);
-      
-      const errorMessage = error.response?.data?.message || 
-                           error.message || 
-                           'Error al confirmar búsqueda web';
-      
-      setError(errorMessage);
+      console.error('Error en confirmación:', error);
+      setError('Error al procesar la confirmación');
       throw error;
     } finally {
       setProcessing(false);
