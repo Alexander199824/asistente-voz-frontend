@@ -338,17 +338,19 @@ const EnhancedAssistant = () => {
     setShowHistory(!showHistory);
   };
 
-  // Función para manejar click en botones de confirmación
-  const handleConfirmationButtonClick = (isConfirm) => {
-    // Simular una respuesta afirmativa o negativa
-    setQuery(isConfirm ? 'Sí' : 'No');
-    
-    // Procesar inmediatamente
-    setTimeout(() => {
-      handleConfirmationResponse();
-    }, 100);
-  };
+ // Función para manejar click en botones de confirmación
+const handleConfirmationButtonClick = (isConfirm) => {
+  // Asegurarnos de que isConfirm sea un booleano
+  const confirmValue = isConfirm === true;
   
+  // Simular una respuesta afirmativa o negativa
+  setQuery(confirmValue ? 'Sí' : 'No');
+  
+  // Procesar inmediatamente, pasando el valor booleano explícitamente
+  setTimeout(() => {
+    handleWebSearchConfirmation(originalQuery, confirmValue);
+  }, 100);
+};
   return (
     <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
       <Paper elevation={3} sx={{ p: 3, borderRadius: 2 }}>

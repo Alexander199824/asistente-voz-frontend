@@ -115,27 +115,36 @@ export const AssistantProvider = ({ children }) => {
     }
   };
 
-  // Nueva función para manejar la confirmación de búsqueda web
-  const handleWebSearchConfirmation = async (originalQuery, isConfirmed) => {
-    setProcessing(true);
-    setError(null);
+  // Función para manejar la confirmación de búsqueda web
+const handleWebSearchConfirmation = async (originalQuery, isConfirmed) => {
+  setProcessing(true);
+  setError(null);
+  
+  try {
+    console.log('Valor original de isConfirmed:', isConfirmed);
+    console.log('Tipo de isConfirmed:', typeof isConfirmed);
     
-    try {
-      // Payload simplificado y claro
-      const payload = {
-        query: originalQuery, 
-        options: {
-          awaitingWebSearchConfirmation: true,
-          isConfirmed: isConfirmed,
-          originalQuery: originalQuery // Asegurarse de que está disponible
-        }
-      };
-      
-      console.log('Payload de confirmación:', payload);
-      
-      // Llamar a la API
-      const response = await assistantAPI.processQuery(payload);
-      console.log('Respuesta completa de confirmación:', response);
+    // Asegurar que isConfirmed sea booleano
+    const confirmedValue = isConfirmed === true || 
+                           isConfirmed === 'true' || 
+                           isConfirmed === 1 || 
+                           isConfirmed === '1';
+    
+    // Payload simplificado y claro
+    const payload = {
+      query: originalQuery, 
+      options: {
+        awaitingWebSearchConfirmation: true,
+        isConfirmed: confirmedValue, // Usar el valor booleano normalizado
+        originalQuery: originalQuery // Asegurarse de que está disponible
+      }
+    };
+    
+    console.log('Payload de confirmación:', payload);
+    
+    // Llamar a la API
+    const response = await assistantAPI.processQuery(payload);
+    console.log('Respuesta completa de confirmación:', response);
       
       // Extraer datos de la respuesta
       const responseData = response.success ? response.data : response;
