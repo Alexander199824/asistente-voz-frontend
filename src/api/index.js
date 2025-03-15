@@ -14,7 +14,7 @@ if (!process.env.REACT_APP_API_URL) {
 
 // Creo una instancia de axios con la URL base de mi API
 const API = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3001/api',
+  baseURL: process.env.REACT_APP_API_URL || 'https://asistente-voz-backend.onrender.com',
   timeout: 5000,
   headers: {
     'Content-Type': 'application/json'
