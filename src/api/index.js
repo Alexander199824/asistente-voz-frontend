@@ -9,13 +9,13 @@ window.backendConnected = undefined;
 
 // Verifica si la variable de entorno está definida
 if (!process.env.REACT_APP_API_URL) {
-  console.warn("⚠️ WARNING: REACT_APP_API_URL no está definido en .env. Se usará http://localhost:3001/api por defecto.");
+  console.warn("⚠️ WARNING: REACT_APP_API_URL no está definido en .env. Se usará https://asistente-voz-backend.onrender.com/api por defecto.");
 }
 
 // Creo una instancia de axios con la URL base de mi API
 const API = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'https://asistente-voz-backend.onrender.com',
-  timeout: 5000,
+  baseURL: process.env.REACT_APP_API_URL || 'https://asistente-voz-backend.onrender.com/api',
+  timeout: 10000, // Aumentado a 10 segundos
   headers: {
     'Content-Type': 'application/json'
   }
@@ -51,7 +51,7 @@ API.interceptors.response.use(
   }
 );
 
-// Verificar la conexión inicial al backend sin mostrar notificación (App.js se encargará de esto)
+// Verificar la conexión inicial al backend sin mostrar notificación 
 const checkBackendConnection = async () => {
   try {
     await API.get('/health');
@@ -84,13 +84,24 @@ export const assistantAPI = {
         ? { query: payload } 
         : payload;
       
+      console.log('Payload enviado:', queryPayload);
+      
       // Enviar la consulta al servidor
       const response = await API.post('/assistant/query', queryPayload);
       
-      // Devuelve directamente response.data para simplificar el manejo en AssistantContext
+      // Log de depuración completo
+      console.log('Respuesta completa del backend:', JSON.stringify(response.data, null, 2));
+      
+      // Devuelve directamente response.data 
       return response.data;
     } catch (error) {
       console.error("Error al procesar consulta:", error);
+      
+      // Loguear detalles del error si está disponible
+      if (error.response) {
+        console.error('Detalles del error del servidor:', JSON.stringify(error.response.data, null, 2));
+      }
+      
       throw error;
     }
   },
@@ -113,96 +124,15 @@ export const assistantAPI = {
       console.error("Error al eliminar conocimiento:", error);
       return { data: { success: false } };
     }
-  }
-};
-
-// **🔹 Endpoints de autenticación**
-export const authAPI = {
-  login: async (username, password) => {
-    if (!window.backendConnected) {
-      throw new Error("Sin conexión al backend");
-    }
-    try {
-      return await API.post('/auth/login', { username, password });
-    } catch (error) {
-      throw error;
-    }
   },
 
-  register: async (username, email, password) => {
-    if (!window.backendConnected) {
-      throw new Error("Sin conexión al backend");
-    }
+  getHistory: async (limit = 50, offset = 0) => {
+    if (!window.backendConnected) return { data: { data: [], total: 0 } };
     try {
-      return await API.post('/auth/register', { username, email, password });
+      return await API.get(`/assistant/history?limit=${limit}&offset=${offset}`);
     } catch (error) {
-      throw error;
-    }
-  },
-
-  getProfile: async () => {
-    if (!window.backendConnected) return null;
-    try {
-      return await API.get('/auth/profile');
-    } catch (error) {
-      return null;
-    }
-  },
-
-  updatePreferences: async (preferences) => {
-    if (!window.backendConnected) {
-      throw new Error("Sin conexión al backend");
-    }
-    try {
-      return await API.put('/auth/preferences', preferences);
-    } catch (error) {
-      throw error;
-    }
-  }
-};
-
-// **🔹 Endpoints de administración**
-export const adminAPI = {
-  updateKnowledge: async (limit = 1) => {
-    if (!window.backendConnected) {
-      throw new Error("Sin conexión al backend");
-    }
-    try {
-      return await API.post('/admin/update-knowledge', { limit });
-    } catch (error) {
-      throw error;
-    }
-  },
-
-  updateSingleKnowledge: async (knowledgeId) => {
-    if (!window.backendConnected) {
-      throw new Error("Sin conexión al backend");
-    }
-    try {
-      return await API.post(`/admin/update-knowledge/${knowledgeId}`);
-    } catch (error) {
-      throw error;
-    }
-  },
-
-  listKnowledge: async (page = 1, limit = 10) => {
-    if (!window.backendConnected) return { data: { data: [], total: 0, limit } };
-    try {
-      return await API.get(`/admin/knowledge?page=${page}&limit=${limit}`);
-    } catch (error) {
-      console.error("Error al listar conocimientos:", error);
-      return { data: { data: [], total: 0, limit } };
-    }
-  },
-
-  clearKnowledgeBase: async () => {
-    if (!window.backendConnected) {
-      throw new Error("Sin conexión al backend");
-    }
-    try {
-      return await API.post('/admin/clear-knowledge');
-    } catch (error) {
-      throw error;
+      console.error("Error al obtener historial:", error);
+      return { data: { data: [], total: 0 } };
     }
   }
 };

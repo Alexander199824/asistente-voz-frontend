@@ -1,175 +1,123 @@
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { assistantAPI } from '../api';
-import { retryApiCall } from '../utils/apiUtils';
 import useAuth from '../hooks/useAuth';
 
-// Creo el contexto del asistente de voz
 export const AssistantContext = createContext();
 
 export const AssistantProvider = ({ children }) => {
-  // Estados para el asistente
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [processing, setProcessing] = useState(false);
   
-  // Obtengo el usuario del contexto de autenticación
   const { user } = useAuth();
 
-  // Método para obtener el historial de conversaciones (usando useCallback)
   const fetchHistory = useCallback(async (limit = 50, offset = 0) => {
-    if (!user) return { data: [] };
+    if (!user) return { data: { data: [], total: 0 } };
     
     setLoading(true);
     setError(null);
     
     try {
-      // Usar la función de reintento para mayor robustez
-      const response = await retryApiCall(
-        assistantAPI.getHistory,
-        [limit, offset],
-        2 // Máximo 2 intentos
-      );
+      const response = await assistantAPI.getHistory(limit, offset);
       
-      if (response && response.data && response.data.data) {
-        setConversations(response.data.data);
+      if (response && response.data) {
+        setConversations(response.data.data || []);
         return response.data;
       } else {
         console.warn('Formato de respuesta inesperado en fetchHistory:', response);
         setConversations([]);
-        return { data: [] };
+        return { data: { data: [], total: 0 } };
       }
     } catch (error) {
       setError(error.response?.data?.message || 'Error al obtener historial');
       console.error('Error al obtener historial:', error);
-      return { data: [] };
+      return { data: { data: [], total: 0 } };
     } finally {
       setLoading(false);
     }
   }, [user]);
 
-  // Efecto para cargar el historial cuando el usuario inicia sesión
   useEffect(() => {
     if (user) {
       fetchHistory();
     } else {
-      // Si no hay usuario, limpio el historial
       setConversations([]);
     }
   }, [user, fetchHistory]);
 
-  // Método para procesar una consulta
   const processQuery = async (query, options = {}) => {
     setProcessing(true);
     setError(null);
     
     try {
-      // Preparar el payload según el tipo de consulta
-      let payload;
+      // Preparar payload
+      const payload = typeof query === 'string' 
+        ? { query, options } 
+        : { ...query, options };
       
-      if (typeof query === 'string') {
-        // Consulta simple
-        payload = { query };
-      } else {
-        // Es un objeto (caso menos común)
-        payload = query;
-      }
+      console.log('Payload completo:', payload);
       
-      // Si hay opciones de confirmación, añadirlas al payload
-      if (options.awaitingWebSearchConfirmation) {
-        payload.options = {
-          awaitingWebSearchConfirmation: true,
-          originalQuery: options.originalQuery
-        };
-      } else if (options.awaitingUpdateConfirmation) {
-        payload.options = {
-          awaitingUpdateConfirmation: true,
-          originalQuery: options.originalQuery,
-          knowledgeId: options.knowledgeId
-        };
-      }
+      // Llamar a la API
+      const response = await assistantAPI.processQuery(payload);
       
-      // Usar la función de reintento
-      const response = await retryApiCall(
-        assistantAPI.processQuery,
-        [payload],
-        2 // Máximo 2 intentos
-      );
+      console.log('Respuesta del servidor:', JSON.stringify(response, null, 2));
       
-      // Para depuración, inspeccionar la estructura real
-      console.log("Respuesta del servidor:", response);
+      // Extraer datos de la respuesta de manera robusta
+      const responseData = response || {};
       
-      // Extraer la respuesta según la estructura
-      // La respuesta podría venir directamente o anidada en data
-      const responseData = response?.data || response;
-      
-      // Extraer los valores relevantes
-      const responseText = responseData.response || 'No se pudo obtener una respuesta';
-      const source = responseData.source || 'desconocido';
-      const confidence = responseData.confidence || 0.5;
-      const knowledgeId = responseData.knowledgeId || null;
-      const awaitingWebSearchConfirmation = responseData.awaitingWebSearchConfirmation || false;
-      const awaitingUpdateConfirmation = responseData.awaitingUpdateConfirmation || false;
-      const originalQuery = responseData.originalQuery || null;
-      
-      // Crear la nueva conversación con la estructura correcta
       const newConversation = {
-        id: responseData.id || new Date().toISOString(), // Temporal hasta que se actualice con fetchHistory
+        id: responseData.id || Date.now().toString(),
         query: typeof query === 'string' ? query : query.query,
-        response: responseText,
-        source,
-        confidence,
-        knowledgeId,
-        created_at: responseData.created_at || new Date().toISOString(),
-        
-        // Nuevos campos para manejo de confirmaciones
-        awaitingWebSearchConfirmation,
-        awaitingUpdateConfirmation,
-        originalQuery
+        response: responseData.response || 'No se pudo obtener una respuesta',
+        source: responseData.source || 'desconocido',
+        confidence: responseData.confidence || 0.5,
+        awaitingWebSearchConfirmation: responseData.awaitingWebSearchConfirmation || false,
+        awaitingUpdateConfirmation: responseData.awaitingUpdateConfirmation || false,
+        originalQuery: responseData.originalQuery || query,
+        knowledgeId: responseData.knowledgeId || null
       };
       
-      // Actualizar el estado de las conversaciones solo si no es una respuesta de confirmación
-      // que requiere acción adicional del usuario
-      if (!awaitingWebSearchConfirmation && !awaitingUpdateConfirmation) {
+      // Actualizar conversaciones solo si no está esperando confirmación
+      if (!newConversation.awaitingWebSearchConfirmation && 
+          !newConversation.awaitingUpdateConfirmation) {
         setConversations(prev => [newConversation, ...prev]);
         
-        // Si el usuario está autenticado, actualizar el historial
         if (user) {
           fetchHistory();
         }
       }
       
-      // Devolver la respuesta procesada para que otros componentes la usen
-      // En un formato consistente
+      // Devolver datos para componentes
       return {
-        response: responseText,
-        source,
-        confidence,
-        knowledgeId,
-        awaitingWebSearchConfirmation,
-        awaitingUpdateConfirmation,
-        originalQuery
+        response: newConversation.response,
+        source: newConversation.source,
+        confidence: newConversation.confidence,
+        awaitingWebSearchConfirmation: newConversation.awaitingWebSearchConfirmation,
+        awaitingUpdateConfirmation: newConversation.awaitingUpdateConfirmation,
+        originalQuery: newConversation.originalQuery,
+        knowledgeId: newConversation.knowledgeId
       };
     } catch (error) {
-      setError(error.response?.data?.message || 'Error al procesar consulta');
-      console.error('Error al procesar consulta:', error);
-      throw error; // Re-lanzar el error para que los componentes puedan manejarlo
+      console.error('Error completo al procesar consulta:', error);
+      
+      // Extraer mensaje de error de manera segura
+      const errorMessage = error.response?.data?.message || 
+                           error.message || 
+                           'Error al procesar consulta';
+      
+      setError(errorMessage);
+      throw error;
     } finally {
       setProcessing(false);
     }
   };
 
-  // Método para proporcionar retroalimentación a una respuesta
   const provideFeedback = async (conversationId, feedback) => {
     try {
-      // Usar la función de reintento
-      const response = await retryApiCall(
-        assistantAPI.provideFeedback,
-        [conversationId, feedback],
-        2
-      );
+      const response = await assistantAPI.provideFeedback(conversationId, feedback);
       
-      // Actualizo el estado de la conversación con el nuevo feedback
+      // Actualizar conversación local con feedback
       setConversations(prev => 
         prev.map(conv => 
           conv.id === conversationId ? { ...conv, feedback } : conv
@@ -184,18 +132,12 @@ export const AssistantProvider = ({ children }) => {
     }
   };
 
-  // Método para eliminar un conocimiento
   const deleteKnowledge = async (knowledgeId) => {
     try {
-      // Usar la función de reintento
-      const response = await retryApiCall(
-        assistantAPI.deleteKnowledge,
-        [knowledgeId],
-        2
-      );
+      const response = await assistantAPI.deleteKnowledge(knowledgeId);
       
-      // Actualizo el historial después de eliminar
       if (response.data.success && user) {
+        // Recargar historial después de eliminar
         fetchHistory();
       }
       
@@ -207,7 +149,6 @@ export const AssistantProvider = ({ children }) => {
     }
   };
 
-  // Proporciono los valores y métodos del contexto
   const value = {
     conversations,
     loading,
@@ -226,7 +167,6 @@ export const AssistantProvider = ({ children }) => {
   );
 };
 
-// Hook personalizado para usar el contexto del asistente
 const useAssistant = () => {
   const context = React.useContext(AssistantContext);
   if (!context) {
