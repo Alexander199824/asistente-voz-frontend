@@ -64,7 +64,6 @@ export const AssistantProvider = ({ children }) => {
       console.log('Respuesta del servidor:', JSON.stringify(response, null, 2));
       
       // Extraer datos de la respuesta de manera robusta
-      // Considerar la estructura con success y data
       const responseData = response.success ? response.data : response;
       
       const newConversation = {
@@ -79,7 +78,9 @@ export const AssistantProvider = ({ children }) => {
         knowledgeId: responseData.knowledgeId || null
       };
       
-      // Actualizar conversaciones solo si no está esperando confirmación
+      // Actualizar conversaciones 
+      // Si está esperando confirmación de búsqueda web, mostrar opciones
+      // Si no está esperando confirmación, añadir al historial
       if (!newConversation.awaitingWebSearchConfirmation && 
           !newConversation.awaitingUpdateConfirmation) {
         setConversations(prev => [newConversation, ...prev]);
@@ -106,6 +107,69 @@ export const AssistantProvider = ({ children }) => {
       const errorMessage = error.response?.data?.message || 
                            error.message || 
                            'Error al procesar consulta';
+      
+      setError(errorMessage);
+      throw error;
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  // Nueva función para manejar la confirmación de búsqueda web
+  const handleWebSearchConfirmation = async (originalQuery, isConfirmed) => {
+    setProcessing(true);
+    setError(null);
+    
+    try {
+      // Preparar payload para confirmación de búsqueda web
+      const payload = {
+        query: originalQuery,
+        options: {
+          awaitingWebSearchConfirmation: true,
+          isConfirmed: isConfirmed
+        }
+      };
+      
+      // Llamar a la API con la confirmación
+      const response = await assistantAPI.processQuery(payload);
+      
+      console.log('Respuesta de confirmación de búsqueda web:', 
+        JSON.stringify(response, null, 2));
+      
+      // Extraer datos de la respuesta
+      const responseData = response.success ? response.data : response;
+      
+      const newConversation = {
+        id: responseData.id || Date.now().toString(),
+        query: originalQuery,
+        response: responseData.response || 'No se pudo obtener una respuesta',
+        source: responseData.source || 'desconocido',
+        confidence: responseData.confidence || 0.5,
+        awaitingWebSearchConfirmation: false,
+        awaitingUpdateConfirmation: false,
+        originalQuery: originalQuery,
+        knowledgeId: responseData.knowledgeId || null
+      };
+      
+      // Añadir al historial de conversaciones
+      setConversations(prev => [newConversation, ...prev]);
+      
+      if (user) {
+        fetchHistory();
+      }
+      
+      return {
+        response: newConversation.response,
+        source: newConversation.source,
+        confidence: newConversation.confidence,
+        originalQuery: originalQuery
+      };
+    } catch (error) {
+      console.error('Error al confirmar búsqueda web:', error);
+      
+      const errorMessage = error.response?.data?.message || 
+                           error.message || 
+                           'Error al confirmar búsqueda web';
       
       setError(errorMessage);
       throw error;
@@ -157,6 +221,7 @@ export const AssistantProvider = ({ children }) => {
     processing,
     fetchHistory,
     processQuery,
+    handleWebSearchConfirmation,
     provideFeedback,
     deleteKnowledge
   };
