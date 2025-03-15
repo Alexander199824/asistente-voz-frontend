@@ -344,9 +344,10 @@ const EnhancedAssistant = () => {
   const confirmValue = isConfirm === true;
   
   try {
-    setProcessing(true);
+    // En vez de usar setProcessing directamente, usamos la variable de estado 'processing'
+    // que ya está disponible a través del hook useAssistant
     
-    // Llamar directamente a la función del contexto
+    // Llamar directamente a la función del contexto que ya maneja su propio estado de procesamiento
     const response = await handleWebSearchConfirmation(
       originalQuery,   // Consulta original
       confirmValue     // Valor booleano de confirmación
@@ -377,8 +378,6 @@ const EnhancedAssistant = () => {
   } catch (error) {
     console.error('Error al procesar confirmación:', error);
     setError('Ocurrió un error al procesar la confirmación.');
-  } finally {
-    setProcessing(false);
   }
 };
   return (
