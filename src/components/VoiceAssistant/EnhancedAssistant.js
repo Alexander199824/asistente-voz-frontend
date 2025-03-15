@@ -240,12 +240,20 @@ const EnhancedAssistant = () => {
   };
 
   // Función para resetear el estado de confirmación
-  const resetConfirmationState = () => {
-    setIsWaitingForConfirmation(false);
-    setOriginalQuery('');
-    setConfirmationType(null);
-    setKnowledgeIdToUpdate(null);
-  };
+const resetConfirmationState = () => {
+  setIsWaitingForConfirmation(false);
+  setOriginalQuery('');
+  setConfirmationType(null);
+  setKnowledgeIdToUpdate(null);
+  
+  // Opcionalmente, puedes agregar un pequeño retraso antes de enfocar el input
+  // para asegurar que la UI se haya actualizado correctamente
+  setTimeout(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, 100);
+};
 
   // Función para procesar una consulta de voz
   const handleVoiceQuery = async (detectedQuery) => {
@@ -339,22 +347,23 @@ const EnhancedAssistant = () => {
   };
 
  // Función para manejar click en botones de confirmación
- const handleConfirmationButtonClick = async (isConfirm) => {
-  // Asegurarnos de que isConfirm sea un booleano
-  const confirmValue = isConfirm === true;
+// En src/components/VoiceAssistant/EnhancedAssistant.js
+// Reemplaza la función handleConfirmationButtonClick por esta versión
+
+// Función para manejar click en botones de confirmación
+const handleConfirmationButtonClick = async (isConfirm) => {
+  // Convertir explícitamente a booleano
+  const confirmValue = Boolean(isConfirm);
   
   try {
-    // En vez de usar setProcessing directamente, usamos la variable de estado 'processing'
-    // que ya está disponible a través del hook useAssistant
-    
-    // Llamar directamente a la función del contexto que ya maneja su propio estado de procesamiento
+    // Procesamiento directo con el contexto
     const response = await handleWebSearchConfirmation(
       originalQuery,   // Consulta original
       confirmValue     // Valor booleano de confirmación
     );
     
     if (response) {
-      // Actualizar la respuesta actual con la nueva información
+      // Actualizar la UI inmediatamente con la respuesta
       setCurrentResponse({
         query: originalQuery,
         response: response.response,
@@ -363,21 +372,19 @@ const EnhancedAssistant = () => {
         knowledgeId: response.knowledgeId
       });
       
-      // Leer la respuesta si auto-speak está habilitado
+      // Reproducir respuesta si es necesario
       if (autoSpeak) {
         speak(response.response);
       }
+      
+      // Limpiar UI y estado
+      resetConfirmationState();
+      setQuery('');
     }
-    
-    // Resetear el estado de confirmación
-    resetConfirmationState();
-    
-    // Limpiar el input
-    setQuery('');
-    
   } catch (error) {
-    console.error('Error al procesar confirmación:', error);
-    setError('Ocurrió un error al procesar la confirmación.');
+    console.error('Error en confirmación:', error);
+    setError('Error al procesar la confirmación');
+    resetConfirmationState();
   }
 };
   return (
