@@ -362,8 +362,12 @@ const EnhancedAssistant = () => {
       }
       
       // Limpiar input si no estamos esperando confirmación
-      if (!responseData?.awaitingWebSearchConfirmation && !responseData?.awaitingUpdateConfirmation) {
-        setQuery('');
+      // CORREGIDO: Cambiado para usar responseData que ya fue definido
+      if (response) {
+        const responseData = response.response !== undefined ? response : response.data;
+        if (!responseData.awaitingWebSearchConfirmation && !responseData.awaitingUpdateConfirmation) {
+          setQuery('');
+        }
       }
     } catch (error) {
       console.error('Error al procesar consulta de voz:', error);
