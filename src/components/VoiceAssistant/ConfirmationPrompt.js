@@ -92,30 +92,30 @@ const ConfirmationPrompt = ({
         )}
         
         <Box sx={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          mt: 2, 
-          flexWrap: 'wrap',
-          gap: 1 
-        }}>
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={type === 'search' ? <Search /> : <Update />}
-            onClick={onConfirm}
-          >
-            {type === 'search' ? 'Sí, buscar' : 'Sí, actualizar'}
-          </Button>
-          
-          <Button
-            variant="outlined"
-            color="inherit"
-            startIcon={<CloudOff />}
-            onClick={onReject}
-          >
-            No, gracias
-          </Button>
-        </Box>
+  display: 'flex', 
+  justifyContent: 'space-between', 
+  mt: 2, 
+  flexWrap: 'wrap',
+  gap: 1 
+}}>
+  <Button
+    variant="contained"
+    color="primary"
+    startIcon={type === 'search' ? <Search /> : <Update />}
+    onClick={() => onConfirm(true)} // Pasar true explícitamente
+  >
+    {type === 'search' ? 'Sí, buscar' : 'Sí, actualizar'}
+  </Button>
+  
+  <Button
+    variant="outlined"
+    color="inherit"
+    startIcon={<CloudOff />}
+    onClick={() => onReject(false)} // Pasar false explícitamente
+  >
+    No, gracias
+  </Button>
+</Box>
         
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 2 }}>
           Consulta original: "{query}"

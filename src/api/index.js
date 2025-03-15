@@ -76,7 +76,7 @@ export const assistantAPI = {
       
       // Asegurar que los valores booleanos se mantengan como tales
       if (queryPayload.options && queryPayload.options.isConfirmed !== undefined) {
-        // Convertir explícitamente a booleano si es necesario
+        // Convertir explícitamente a booleano
         queryPayload.options.isConfirmed = 
           queryPayload.options.isConfirmed === true || 
           queryPayload.options.isConfirmed === 'true' || 

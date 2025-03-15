@@ -116,52 +116,55 @@ export const AssistantProvider = ({ children }) => {
   };
 
   // Función para manejar la confirmación de búsqueda web
-const handleWebSearchConfirmation = async (originalQuery, isConfirmed) => {
-  setProcessing(true);
-  setError(null);
-  
-  try {
-    console.log('Valor original de isConfirmed:', isConfirmed);
-    console.log('Tipo de isConfirmed:', typeof isConfirmed);
+  const handleWebSearchConfirmation = async (originalQuery, isConfirmed) => {
+    setProcessing(true);
+    setError(null);
     
-    // Asegurar que isConfirmed sea booleano
-    const confirmedValue = isConfirmed === true || 
-                           isConfirmed === 'true' || 
-                           isConfirmed === 1 || 
-                           isConfirmed === '1';
-    
-    // Payload simplificado y claro
-    const payload = {
-      query: originalQuery, 
-      options: {
-        awaitingWebSearchConfirmation: true,
-        isConfirmed: confirmedValue, // Usar el valor booleano normalizado
-        originalQuery: originalQuery // Asegurarse de que está disponible
-      }
-    };
-    
-    console.log('Payload de confirmación:', payload);
-    
-    // Llamar a la API
-    const response = await assistantAPI.processQuery(payload);
-    console.log('Respuesta completa de confirmación:', response);
+    try {
+      console.log('Valor original de isConfirmed:', isConfirmed);
+      console.log('Tipo de isConfirmed:', typeof isConfirmed);
+      
+      // Asegurar que isConfirmed sea booleano
+      const confirmedValue = isConfirmed === true || 
+                             isConfirmed === 'true' || 
+                             isConfirmed === 1 || 
+                             isConfirmed === '1';
+      
+      // Payload simplificado y claro
+      const payload = {
+        query: originalQuery, 
+        options: {
+          awaitingWebSearchConfirmation: true,
+          isConfirmed: confirmedValue, // Usar el valor booleano normalizado
+          originalQuery: originalQuery // Asegurarse de que está disponible
+        }
+      };
+      
+      console.log('Payload de confirmación:', payload);
+      
+      // Llamar a la API
+      const response = await assistantAPI.processQuery(payload);
+      console.log('Respuesta completa de confirmación:', response);
       
       // Extraer datos de la respuesta
       const responseData = response.success ? response.data : response;
       
-      // Actualizar conversaciones
-      const newConversation = {
-        id: responseData.id || Date.now().toString(),
-        query: originalQuery,
-        response: responseData.response || 'No se pudo obtener respuesta',
-        source: responseData.source || 'desconocido',
-        confidence: responseData.confidence || 0.5
-      };
-      
-      setConversations(prev => [newConversation, ...prev]);
-      
-      if (user) {
-        fetchHistory();
+      // Actualizar conversaciones solo si no es una respuesta temporal
+      if (!responseData.awaitingWebSearchConfirmation && !responseData.awaitingUpdateConfirmation) {
+        const newConversation = {
+          id: responseData.id || Date.now().toString(),
+          query: originalQuery,
+          response: responseData.response || 'No se pudo obtener respuesta',
+          source: responseData.source || 'desconocido',
+          confidence: responseData.confidence || 0.5,
+          knowledgeId: responseData.knowledgeId || null
+        };
+        
+        setConversations(prev => [newConversation, ...prev]);
+        
+        if (user) {
+          fetchHistory();
+        }
       }
       
       return responseData;

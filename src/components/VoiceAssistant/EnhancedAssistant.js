@@ -339,17 +339,47 @@ const EnhancedAssistant = () => {
   };
 
  // Función para manejar click en botones de confirmación
-const handleConfirmationButtonClick = (isConfirm) => {
+ const handleConfirmationButtonClick = async (isConfirm) => {
   // Asegurarnos de que isConfirm sea un booleano
   const confirmValue = isConfirm === true;
   
-  // Simular una respuesta afirmativa o negativa
-  setQuery(confirmValue ? 'Sí' : 'No');
-  
-  // Procesar inmediatamente, pasando el valor booleano explícitamente
-  setTimeout(() => {
-    handleWebSearchConfirmation(originalQuery, confirmValue);
-  }, 100);
+  try {
+    setProcessing(true);
+    
+    // Llamar directamente a la función del contexto
+    const response = await handleWebSearchConfirmation(
+      originalQuery,   // Consulta original
+      confirmValue     // Valor booleano de confirmación
+    );
+    
+    if (response) {
+      // Actualizar la respuesta actual con la nueva información
+      setCurrentResponse({
+        query: originalQuery,
+        response: response.response,
+        source: response.source,
+        confidence: response.confidence,
+        knowledgeId: response.knowledgeId
+      });
+      
+      // Leer la respuesta si auto-speak está habilitado
+      if (autoSpeak) {
+        speak(response.response);
+      }
+    }
+    
+    // Resetear el estado de confirmación
+    resetConfirmationState();
+    
+    // Limpiar el input
+    setQuery('');
+    
+  } catch (error) {
+    console.error('Error al procesar confirmación:', error);
+    setError('Ocurrió un error al procesar la confirmación.');
+  } finally {
+    setProcessing(false);
+  }
 };
   return (
     <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
