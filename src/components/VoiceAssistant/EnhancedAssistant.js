@@ -12,18 +12,12 @@ import {
   CircularProgress,
   Grid,
   Alert,
-  Card,
-  CardContent,
   IconButton,
   Chip
 } from '@mui/material';
 import { 
   Send, 
   History, 
-  ThumbUp, 
-  ThumbDown, 
-  Search, 
-  Update, 
   VolumeUp, 
   VolumeOff
 } from '@mui/icons-material';
@@ -51,7 +45,14 @@ const EnhancedAssistant = () => {
   const inputRef = useRef(null);
   
   // Obtengo funcionalidades del contexto del asistente
-  const { processQuery, conversations, loading, processing, error: assistantError } = useAssistant();
+  const { 
+    processQuery, 
+    handleWebSearchConfirmation, 
+    conversations, 
+    loading, 
+    processing, 
+    error: assistantError 
+  } = useAssistant();
   
   // Obtengo funcionalidades de síntesis de voz
   const { speak, speaking, stop, audioSupported } = useSpeech();
@@ -73,6 +74,24 @@ const EnhancedAssistant = () => {
     }
   }, [processing, isWaitingForConfirmation]);
 
+  // Función para verificar si una respuesta es afirmativa
+  const isAffirmativeResponse = (response) => {
+    const affirmativePatterns = [
+      /^s[ií]/i,             // "si", "sí"
+      /^y[eo]s/i,            // "yes", "yep"
+      /^claro/i,             // "claro"
+      /^por supuesto/i,      // "por supuesto"
+      /^ok/i,                // "ok"
+      /^busc[ao]/i,          // "busca", "busco"
+      /^actualiza/i,         // "actualiza", "actualizar"
+      /^hazlo/i,             // "hazlo"
+      /^adelante/i,          // "adelante"
+      /^dale/i,              // "dale"
+    ];
+    
+    return affirmativePatterns.some(pattern => pattern.test(response.trim().toLowerCase()));
+  };
+
   // Función para procesar una consulta de texto
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -84,7 +103,7 @@ const EnhancedAssistant = () => {
 
     // Si estamos esperando confirmación, manejar diferente
     if (isWaitingForConfirmation) {
-      handleConfirmationResponse();
+      await handleConfirmationResponse();
       return;
     }
     
@@ -93,27 +112,24 @@ const EnhancedAssistant = () => {
       const response = await processQuery(query);
       
       if (response) {
-        // Extraer los datos de respuesta adaptándose a la estructura que envía el backend
-        const responseData = response.response !== undefined ? response : response.data;
-        
         // Verificar si la respuesta está esperando una confirmación
-        if (responseData.awaitingWebSearchConfirmation) {
-          handleSearchConfirmation(responseData, query);
-        } else if (responseData.awaitingUpdateConfirmation) {
-          handleUpdateConfirmation(responseData, query);
+        if (response.awaitingWebSearchConfirmation) {
+          handleSearchConfirmation(response, query);
+        } else if (response.awaitingUpdateConfirmation) {
+          handleUpdateConfirmation(response, query);
         } else {
           // Respuesta normal
           setCurrentResponse({
             query,
-            response: responseData.response,
-            source: responseData.source,
-            confidence: responseData.confidence,
-            knowledgeId: responseData.knowledgeId
+            response: response.response,
+            source: response.source,
+            confidence: response.confidence,
+            knowledgeId: response.knowledgeId
           });
           
           // Leer la respuesta si está habilitado
           if (autoSpeak) {
-            speak(responseData.response);
+            speak(response.response);
           }
           
           // Resetear estados de confirmación
@@ -187,41 +203,24 @@ const EnhancedAssistant = () => {
     // Detectar si es una respuesta afirmativa o negativa
     const isAffirmative = isAffirmativeResponse(query);
     
-    // Crear opciones basadas en el tipo de confirmación
-    let options = {};
-    
-    if (confirmationType === 'search') {
-      options = {
-        awaitingWebSearchConfirmation: true,
-        originalQuery: originalQuery
-      };
-    } else if (confirmationType === 'update') {
-      options = {
-        awaitingUpdateConfirmation: true,
-        originalQuery: originalQuery,
-        knowledgeId: knowledgeIdToUpdate
-      };
-    }
-    
     try {
-      // Procesar la consulta con las opciones de confirmación
-      const response = await processQuery(query, options);
+      // Usar el nuevo método de confirmación de búsqueda web
+      const response = await handleWebSearchConfirmation(
+        originalQuery,    // Consulta original
+        isAffirmative     // Confirmación (sí/no)
+      );
       
       if (response) {
-        // Extraer los datos de respuesta
-        const responseData = response.response !== undefined ? response : response.data;
-        
         setCurrentResponse({
-          query: isAffirmative ? originalQuery : query,
-          response: responseData.response,
-          source: responseData.source,
-          confidence: responseData.confidence,
-          knowledgeId: responseData.knowledgeId
+          query: originalQuery,
+          response: response.response,
+          source: response.source,
+          confidence: response.confidence
         });
         
         // Leer la respuesta final
         if (autoSpeak) {
-          speak(responseData.response);
+          speak(response.response);
         }
       }
       
@@ -240,24 +239,6 @@ const EnhancedAssistant = () => {
     }
   };
 
-  // Función para verificar si una respuesta es afirmativa
-  const isAffirmativeResponse = (response) => {
-    const affirmativePatterns = [
-      /^s[ií]/i,             // "si", "sí"
-      /^y[eo]s/i,            // "yes", "yep"
-      /^claro/i,             // "claro"
-      /^por supuesto/i,      // "por supuesto"
-      /^ok/i,                // "ok"
-      /^busc[ao]/i,          // "busca", "busco"
-      /^actualiza/i,         // "actualiza", "actualizar"
-      /^hazlo/i,             // "hazlo"
-      /^adelante/i,          // "adelante"
-      /^dale/i,              // "dale"
-    ];
-    
-    return affirmativePatterns.some(pattern => pattern.test(response.trim().toLowerCase()));
-  };
-
   // Función para resetear el estado de confirmación
   const resetConfirmationState = () => {
     setIsWaitingForConfirmation(false);
@@ -270,45 +251,26 @@ const EnhancedAssistant = () => {
   const handleVoiceQuery = async (detectedQuery) => {
     setQuery(detectedQuery);
     
-    // Si estamos esperando confirmación, no procesamos como nueva consulta
+    // Si estamos esperando confirmación, procesar como confirmación
     if (isWaitingForConfirmation) {
-      // Verificar si es una respuesta a la confirmación
       const isAffirmative = isAffirmativeResponse(detectedQuery);
       
-      // Crear opciones basadas en el tipo de confirmación
-      let options = {};
-      
-      if (confirmationType === 'search') {
-        options = {
-          awaitingWebSearchConfirmation: true,
-          originalQuery: originalQuery
-        };
-      } else if (confirmationType === 'update') {
-        options = {
-          awaitingUpdateConfirmation: true,
-          originalQuery: originalQuery,
-          knowledgeId: knowledgeIdToUpdate
-        };
-      }
-      
       try {
-        // Procesar la consulta con las opciones de confirmación
-        const response = await processQuery(detectedQuery, options);
+        const response = await handleWebSearchConfirmation(
+          originalQuery,    // Consulta original
+          isAffirmative     // Confirmación (sí/no)
+        );
         
         if (response) {
-          // Extraer los datos de respuesta
-          const responseData = response.response !== undefined ? response : response.data;
-          
           setCurrentResponse({
-            query: isAffirmative ? originalQuery : detectedQuery,
-            response: responseData.response,
-            source: responseData.source,
-            confidence: responseData.confidence,
-            knowledgeId: responseData.knowledgeId
+            query: originalQuery,
+            response: response.response,
+            source: response.source,
+            confidence: response.confidence
           });
           
           // Leer la respuesta final
-          speak(responseData.response);
+          speak(response.response);
         }
         
         // Restablecer el estado de confirmación
@@ -334,26 +296,23 @@ const EnhancedAssistant = () => {
       const response = await processQuery(detectedQuery);
       
       if (response) {
-        // Extraer los datos de respuesta
-        const responseData = response.response !== undefined ? response : response.data;
-        
         // Verificar si la respuesta está esperando una confirmación
-        if (responseData.awaitingWebSearchConfirmation) {
-          handleSearchConfirmation(responseData, detectedQuery);
-        } else if (responseData.awaitingUpdateConfirmation) {
-          handleUpdateConfirmation(responseData, detectedQuery);
+        if (response.awaitingWebSearchConfirmation) {
+          handleSearchConfirmation(response, detectedQuery);
+        } else if (response.awaitingUpdateConfirmation) {
+          handleUpdateConfirmation(response, detectedQuery);
         } else {
           // Respuesta normal
           setCurrentResponse({
             query: detectedQuery,
-            response: responseData.response,
-            source: responseData.source,
-            confidence: responseData.confidence,
-            knowledgeId: responseData.knowledgeId
+            response: response.response,
+            source: response.source,
+            confidence: response.confidence,
+            knowledgeId: response.knowledgeId
           });
           
           // Leer la respuesta siempre cuando viene de voz
-          speak(responseData.response);
+          speak(response.response);
         }
       } else {
         const message = 'Lo siento, no pude obtener una respuesta. ¿Puedes intentar de nuevo?';
@@ -362,12 +321,8 @@ const EnhancedAssistant = () => {
       }
       
       // Limpiar input si no estamos esperando confirmación
-      // CORREGIDO: Cambiado para usar responseData que ya fue definido
-      if (response) {
-        const responseData = response.response !== undefined ? response : response.data;
-        if (!responseData.awaitingWebSearchConfirmation && !responseData.awaitingUpdateConfirmation) {
-          setQuery('');
-        }
+      if (!response.awaitingWebSearchConfirmation && !response.awaitingUpdateConfirmation) {
+        setQuery('');
       }
     } catch (error) {
       console.error('Error al procesar consulta de voz:', error);

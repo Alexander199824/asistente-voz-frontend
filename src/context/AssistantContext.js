@@ -123,12 +123,14 @@ export const AssistantProvider = ({ children }) => {
     try {
       // Preparar payload para confirmación de búsqueda web
       const payload = {
-        query: originalQuery,
+        query: originalQuery, // Asegurarse de incluir la consulta original
         options: {
           awaitingWebSearchConfirmation: true,
           isConfirmed: isConfirmed
         }
       };
+      
+      console.log('Payload de confirmación de búsqueda web:', payload);
       
       // Llamar a la API con la confirmación
       const response = await assistantAPI.processQuery(payload);
