@@ -29,6 +29,8 @@ import {
 } from '@mui/icons-material';
 import Recorder from './Recorder';
 import Response from './Response';
+import ConfirmationPrompt from './ConfirmationPrompt';
+import ProcessingIndicator from './ProcessingIndicator';
 import useAssistant from '../../hooks/useAssistant';
 import useSpeech from '../../hooks/useSpeech';
 import useAuth from '../../hooks/useAuth';
@@ -412,41 +414,23 @@ const EnhancedAssistant = () => {
         
         <Recorder onQueryDetected={handleVoiceQuery} />
         
+        {/* Si está procesando, mostrar indicador */}
+        {processing && !isWaitingForConfirmation && (
+          <ProcessingIndicator 
+            query={originalQuery || query} 
+            isSearching={confirmationType === 'search'}
+          />
+        )}
+        
         {/* Si está esperando confirmación, mostrar un componente de confirmación */}
         {isWaitingForConfirmation && (
-          <Card variant="outlined" sx={{ mb: 3, bgcolor: 'background.default' }}>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                {confirmationType === 'search' 
-                  ? '¿Deseas buscar esta información en fuentes externas?' 
-                  : '¿Deseas actualizar esta información?'}
-              </Typography>
-              
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                {confirmationType === 'search'
-                  ? 'Puedo buscar esta información en sitios web o usar inteligencia artificial.'
-                  : 'Puedo intentar encontrar información más actualizada sobre este tema.'}
-              </Typography>
-              
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
-                <Button 
-                  variant="contained" 
-                  color="primary"
-                  startIcon={confirmationType === 'search' ? <Search /> : <Update />}
-                  onClick={() => handleConfirmationButtonClick(true)}
-                >
-                  {confirmationType === 'search' ? 'Sí, buscar' : 'Sí, actualizar'}
-                </Button>
-                
-                <Button 
-                  variant="outlined"
-                  onClick={() => handleConfirmationButtonClick(false)}
-                >
-                  No, gracias
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
+          <ConfirmationPrompt
+            type={confirmationType}
+            query={originalQuery}
+            responseText={currentResponse?.response}
+            onConfirm={() => handleConfirmationButtonClick(true)}
+            onReject={() => handleConfirmationButtonClick(false)}
+          />
         )}
         
         <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>

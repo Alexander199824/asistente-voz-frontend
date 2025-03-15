@@ -19,7 +19,7 @@ import Login from './Auth/Login';
 import Register from './Auth/Register';
 
 // Páginas del asistente
-import Assistant from './VoiceAssistant/Assistant';
+import Assistant from './VoiceAssistant/EnhancedAssistant';
 import Dashboard from './Dashboard/Dashboard';
 import History from './Dashboard/History';
 import Settings from './Settings/Settings';

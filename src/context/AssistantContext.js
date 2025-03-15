@@ -59,15 +59,40 @@ export const AssistantProvider = ({ children }) => {
   }, [user, fetchHistory]);
 
   // Método para procesar una consulta
-  const processQuery = async (query) => {
+  const processQuery = async (query, options = {}) => {
     setProcessing(true);
     setError(null);
     
     try {
+      // Preparar el payload según el tipo de consulta
+      let payload;
+      
+      if (typeof query === 'string') {
+        // Consulta simple
+        payload = { query };
+      } else {
+        // Es un objeto (caso menos común)
+        payload = query;
+      }
+      
+      // Si hay opciones de confirmación, añadirlas al payload
+      if (options.awaitingWebSearchConfirmation) {
+        payload.options = {
+          awaitingWebSearchConfirmation: true,
+          originalQuery: options.originalQuery
+        };
+      } else if (options.awaitingUpdateConfirmation) {
+        payload.options = {
+          awaitingUpdateConfirmation: true,
+          originalQuery: options.originalQuery,
+          knowledgeId: options.knowledgeId
+        };
+      }
+      
       // Usar la función de reintento
       const response = await retryApiCall(
         assistantAPI.processQuery,
-        [query],
+        [payload],
         2 // Máximo 2 intentos
       );
       
@@ -76,29 +101,55 @@ export const AssistantProvider = ({ children }) => {
       
       // Extraer la respuesta según la estructura
       // La respuesta podría venir directamente o anidada en data
-      const responseText = response?.response || response?.data?.response || 'No se pudo obtener una respuesta';
+      const responseData = response?.data || response;
+      
+      // Extraer los valores relevantes
+      const responseText = responseData.response || 'No se pudo obtener una respuesta';
+      const source = responseData.source || 'desconocido';
+      const confidence = responseData.confidence || 0.5;
+      const knowledgeId = responseData.knowledgeId || null;
+      const awaitingWebSearchConfirmation = responseData.awaitingWebSearchConfirmation || false;
+      const awaitingUpdateConfirmation = responseData.awaitingUpdateConfirmation || false;
+      const originalQuery = responseData.originalQuery || null;
       
       // Crear la nueva conversación con la estructura correcta
       const newConversation = {
-        id: response?.id || new Date().toISOString(), // Temporal hasta que se actualice con fetchHistory
-        query,
+        id: responseData.id || new Date().toISOString(), // Temporal hasta que se actualice con fetchHistory
+        query: typeof query === 'string' ? query : query.query,
         response: responseText,
-        source: response?.source || response?.data?.source,
-        confidence: response?.confidence || response?.data?.confidence,
-        knowledgeId: response?.knowledgeId || response?.data?.knowledgeId,
-        created_at: response?.created_at || new Date().toISOString()
+        source,
+        confidence,
+        knowledgeId,
+        created_at: responseData.created_at || new Date().toISOString(),
+        
+        // Nuevos campos para manejo de confirmaciones
+        awaitingWebSearchConfirmation,
+        awaitingUpdateConfirmation,
+        originalQuery
       };
       
-      // Actualizar el estado de las conversaciones
-      setConversations(prev => [newConversation, ...prev]);
-      
-      // Si el usuario está autenticado, actualizar el historial
-      if (user) {
-        fetchHistory();
+      // Actualizar el estado de las conversaciones solo si no es una respuesta de confirmación
+      // que requiere acción adicional del usuario
+      if (!awaitingWebSearchConfirmation && !awaitingUpdateConfirmation) {
+        setConversations(prev => [newConversation, ...prev]);
+        
+        // Si el usuario está autenticado, actualizar el historial
+        if (user) {
+          fetchHistory();
+        }
       }
       
       // Devolver la respuesta procesada para que otros componentes la usen
-      return response;
+      // En un formato consistente
+      return {
+        response: responseText,
+        source,
+        confidence,
+        knowledgeId,
+        awaitingWebSearchConfirmation,
+        awaitingUpdateConfirmation,
+        originalQuery
+      };
     } catch (error) {
       setError(error.response?.data?.message || 'Error al procesar consulta');
       console.error('Error al procesar consulta:', error);
@@ -108,7 +159,7 @@ export const AssistantProvider = ({ children }) => {
     }
   };
 
-  // Método para proporcionar feedback a una respuesta
+  // Método para proporcionar retroalimentación a una respuesta
   const provideFeedback = async (conversationId, feedback) => {
     try {
       // Usar la función de reintento
@@ -174,3 +225,14 @@ export const AssistantProvider = ({ children }) => {
     </AssistantContext.Provider>
   );
 };
+
+// Hook personalizado para usar el contexto del asistente
+const useAssistant = () => {
+  const context = React.useContext(AssistantContext);
+  if (!context) {
+    throw new Error('useAssistant debe ser usado dentro de un AssistantProvider');
+  }
+  return context;
+};
+
+export default useAssistant;
